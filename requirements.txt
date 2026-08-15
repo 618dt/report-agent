@@ -60,7 +60,7 @@ pycparser==3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
 Pygments==2.20.0
-pymongo==4.17.0
+pymongo==4.16.0
 pytest==9.1.1
 pywin32==312
 PyYAML==6.0.3
