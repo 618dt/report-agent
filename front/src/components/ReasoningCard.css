@@ -1,0 +1,80 @@
+.reasoning-card {
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm, 8px);
+  margin: 6px 0;
+  overflow: hidden;
+  font-size: 13px;
+  background: #f8fafc;
+  box-shadow: var(--shadow);
+}
+
+.reasoning-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.reasoning-card-header:hover {
+  background: #eff6ff;
+}
+
+.reasoning-card-icon {
+  display: flex;
+  align-items: center;
+  color: #2563eb;
+}
+
+.reasoning-card-icon .spin {
+  animation: reasoning-spin 1s linear infinite;
+}
+
+@keyframes reasoning-spin {
+  to { transform: rotate(360deg); }
+}
+
+.reasoning-card-brain {
+  flex-shrink: 0;
+  color: #3b82f6;
+}
+
+.reasoning-card-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  color: #1e40af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reasoning-card-preview {
+  font-weight: 400;
+  color: var(--text-muted, #94a3b8);
+}
+
+.reasoning-card-toggle {
+  color: var(--text-muted, #9ca3af);
+}
+
+.reasoning-card-body {
+  padding: 0 12px 10px;
+  border-top: 1px solid #dbeafe;
+}
+
+.reasoning-card-content {
+  margin: 8px 0 0;
+  padding: 8px;
+  background: #eff6ff;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+  color: #334155;
+}

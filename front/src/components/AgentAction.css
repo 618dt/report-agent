@@ -1,0 +1,23 @@
+.agent-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin: 4px 0 4px var(--agent-content-indent, 36px);
+  width: calc(100% - var(--agent-content-indent, 36px));
+  max-width: calc(100% - var(--agent-content-indent, 36px));
+  box-sizing: border-box;
+  color: var(--text-muted);
+  font-size: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+.agent-action-spin {
+  animation: spin 1s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

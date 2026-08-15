@@ -1,0 +1,115 @@
+.tool-call-card {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-sm, 8px);
+  margin: 6px 0;
+  overflow: hidden;
+  font-size: 13px;
+  background: var(--bg-secondary, #ffffff);
+  box-shadow: var(--shadow);
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.tool-call-header:hover {
+  background: var(--hover-bg, #f3f4f6);
+}
+
+.tool-call-icon {
+  display: flex;
+  align-items: center;
+  color: var(--green-dark, #059669);
+}
+
+.tool-call-icon .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tool-call-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-color, #374151);
+}
+
+.tool-call-toggle {
+  color: var(--text-muted, #9ca3af);
+}
+
+.tool-call-body {
+  padding: 0 12px 10px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.tool-call-section {
+  margin-top: 8px;
+}
+
+.tool-call-section-label {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--text-muted, #9ca3af);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.tool-call-args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tool-call-arg {
+  display: inline-flex;
+  font-size: 12px;
+  background: var(--chip-bg, #e5e7eb);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.arg-key {
+  font-weight: 500;
+  color: var(--text-color, #374151);
+}
+
+.arg-value {
+  color: var(--text-secondary, #6b7280);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arg-empty {
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
+}
+
+.tool-call-response {
+  margin: 0;
+  padding: 8px;
+  background: var(--code-bg, #f3f4f6);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-call-truncated-hint {
+  font-size: 11px;
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
+  margin-top: 4px;
+}

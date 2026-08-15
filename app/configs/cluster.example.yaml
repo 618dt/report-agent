@@ -1,0 +1,57 @@
+# Cluster Configuration
+# cp app/configs/cluster.example.yaml app/configs/cluster.configs.yaml
+#
+# Docker 部署时账号密码须与 deploy/.env 一致：
+#   mongodb.user/pwd  ↔  MONGO_ROOT_USERNAME / MONGO_ROOT_PASSWORD
+#   redis.password    ↔  REDIS_PASSWORD（仅 --profile redis 时）
+#
+# Redis host：
+#   宿主机 Redis → host.docker.internal
+#   容器 Redis   → redis（需 --profile redis）
+
+# MongoDB Configuration
+mongodb:
+  host: mongodb
+  port: 27017
+  database: report-agent-db
+  is_auth: true
+  user: report                 # = MONGO_ROOT_USERNAME
+  pwd: change-me-mongo         # = MONGO_ROOT_PASSWORD
+  auth_source: admin           # MONGO_INITDB_ROOT_* 认证库
+  is_replica: false
+  replica: ''
+
+# Redis Configuration
+redis:
+  host: host.docker.internal   # 容器 Redis 时改为 redis
+  port: 6379
+  db: 0
+  is_auth: true
+  password: change-me-redis    # 宿主机密码，或 = REDIS_PASSWORD
+  socket_timeout: 5
+  socket_connect_timeout: 5
+  max_connections: 50
+
+# Tavily
+tavily:
+  api_key: ''   # tvly-...
+
+# LLM
+llm:
+  deepseek:
+    model: deepseek-v4-pro
+    model_provider: openai
+    api_key: ''   # sk-...
+    base_url: https://api.deepseek.com
+    system_prompt: "你是一个专业的分析 AI 助手，可以搜索网络获取实时信息来回答用户问题。"
+
+# Langfuse Observability（也可改用环境变量 LANGFUSE_PUBLIC_KEY /
+# LANGFUSE_SECRET_KEY / LANGFUSE_BASE_URL；无密钥时自动跳过）
+langfuse:
+  enabled: false
+  public_key: ''          # pk-lf-...
+  secret_key: ''          # sk-lf-...
+  base_url: 'https://cloud.langfuse.com'
+  environment: 'development'
+  sample_rate: 1.0
+  release: '0.1.0'

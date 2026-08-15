@@ -1,0 +1,402 @@
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 0;
+  background: var(--bg-primary);
+}
+
+.chat-header {
+  padding: 10px 20px;
+  min-height: 52px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+/* 移动端为悬浮侧边栏按钮预留空间，避免挡住标题 */
+@media (max-width: 768px) {
+  .chat-header {
+    padding-left: 56px;
+  }
+}
+
+.chat-header-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-header-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.chat-header-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Messages Area ===== */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  /* 用左右 padding 居中主栏，避免 align-items:center 导致子项按内容收缩 */
+  padding: 20px max(24px, calc((100% - var(--chat-column-max-width, 720px)) / 2));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.chat-messages > .chat-welcome,
+.chat-messages > .message-wrapper,
+.chat-messages > .loading-indicator {
+  width: 100%;
+  max-width: var(--chat-column-max-width, 720px);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* ===== Welcome ===== */
+.chat-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.chat-welcome h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chat-welcome p {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 360px;
+}
+
+/* ===== Interrupt Banner ===== */
+.interrupt-banner {
+  margin: 8px 0;
+  border-radius: var(--radius-md);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.interrupt-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px 8px;
+}
+
+.interrupt-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.interrupt-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 2px;
+}
+
+.interrupt-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Tool cards */
+.interrupt-tools {
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interrupt-tool-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+}
+
+.interrupt-tool-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green-dark);
+  margin-bottom: 4px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.interrupt-tool-args {
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.interrupt-tool-arg {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.arg-key {
+  color: var(--text-muted);
+}
+
+.arg-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.arg-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Action buttons */
+.interrupt-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.interrupt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.interrupt-btn.approve {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.interrupt-btn.approve:hover {
+  background: var(--green-dark);
+}
+
+.interrupt-btn.deny {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.interrupt-btn.deny:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+
+/* ===== Tool Calls Section ===== */
+.tool-calls-section {
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-call-card {
+  border-radius: var(--radius-md);
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.tool-call-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  color: var(--green);
+}
+
+.tool-call-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green-dark);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.tool-call-args {
+  padding: 0 12px 8px;
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.tool-call-response {
+  border-top: 1px solid #bbf7d0;
+  padding: 8px 12px;
+  background: #f9fafb;
+}
+
+.tool-call-response-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.tool-call-response-content {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  background: transparent;
+  font-family: inherit;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Loading Indicator ===== */
+.loading-indicator {
+  display: flex;
+  gap: 6px;
+  padding: 12px 0;
+  margin-left: var(--agent-content-indent, 36px);
+}
+
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green, #10b981);
+  animation: loadingBounce 1.4s ease-in-out infinite both;
+}
+
+.loading-dot:nth-child(1) { animation-delay: -0.32s; }
+.loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes loadingBounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 有工具调用时：头像贴在整列左侧，与 agent-trace 顶部对齐 */
+.message-wrapper--agent {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.message-body {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* 栏内 AI 块统一拉满，与用户消息右缘对齐 */
+.message-body > .agent-trace,
+.message-body > .plan-progress,
+.message-body > .confirm-result,
+.message-body > .interactive-panel,
+.message-body > .msg,
+.message-body > .report-card-row {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  box-sizing: border-box;
+}
+
+.message-body .report-card-avatar-spacer {
+  display: none;
+}
+
+.message-body .report-card--jump {
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
+}
+
+.message-body .msg {
+  padding-top: 0;
+}
+
+/* ===== Token usage ===== */
+.token-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px;
+  margin-left: var(--agent-content-indent, 36px);
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.message-body .token-usage {
+  margin-left: 0;
+}
+
+.token-usage--estimated .token-usage-label {
+  color: var(--text-secondary);
+}
+
+.token-usage-label {
+  font-weight: 500;
+}
+
+.token-usage-detail {
+  opacity: 0.85;
+}

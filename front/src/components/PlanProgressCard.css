@@ -1,0 +1,246 @@
+.plan-progress {
+  /* 与 AgentTrace / InteractivePanel 左缘、宽度对齐 */
+  margin: 6px 0 10px var(--agent-content-indent, 36px);
+  width: calc(100% - var(--agent-content-indent, 36px));
+  max-width: calc(100% - var(--agent-content-indent, 36px));
+  box-sizing: border-box;
+}
+
+.plan-progress-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm, 8px);
+  background: #f0fdf4;
+  color: var(--green-dark, #059669);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  box-sizing: border-box;
+}
+
+.plan-progress-toggle:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.plan-progress--done .plan-progress-toggle {
+  border-color: #86efac;
+  background: #ecfdf5;
+}
+
+.plan-progress-toggle-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--green, #10b981);
+}
+
+.plan-progress-toggle-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.plan-progress-toggle-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #14532d;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.plan-progress-toggle-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.plan-progress-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  background: #dcfce7;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.plan-progress-toggle-chevron {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted, #94a3b8);
+}
+
+.plan-progress-body {
+  margin-top: 6px;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm, 8px);
+  background: #f0fdf4;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.plan-progress--done .plan-progress-body {
+  border-color: #86efac;
+  background: #ecfdf5;
+}
+
+.plan-progress-goal {
+  padding: 10px 14px 0;
+  font-size: 12px;
+  color: #15803d;
+  line-height: 1.4;
+}
+
+.plan-progress-bar {
+  margin: 8px 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: #dcfce7;
+  overflow: hidden;
+}
+
+.plan-progress-bar-fill {
+  height: 100%;
+  background: #22c55e;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.plan-progress-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 8px;
+}
+
+.plan-progress-step--running {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.plan-progress-step--completed {
+  opacity: 0.85;
+}
+
+.plan-progress-step--skipped {
+  opacity: 0.55;
+}
+
+.plan-progress-step-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #bbf7d0;
+  color: #16a34a;
+}
+
+.plan-progress-step--pending .plan-progress-step-icon {
+  color: #94a3b8;
+  border-color: #e2e8f0;
+}
+
+.plan-progress-step--running .plan-progress-step-icon {
+  color: #16a34a;
+  border-color: #4ade80;
+  background: #dcfce7;
+}
+
+.plan-progress-step--completed .plan-progress-step-icon {
+  color: #fff;
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.plan-progress-step--skipped .plan-progress-step-icon {
+  color: #94a3b8;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.plan-progress-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-progress-step-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #14532d;
+  line-height: 1.4;
+}
+
+.plan-progress-step--pending .plan-progress-step-title {
+  color: #334155;
+}
+
+.plan-progress-step-index {
+  color: #64748b;
+  margin-right: 4px;
+  font-weight: 400;
+}
+
+.plan-progress-step-desc {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.plan-progress-step-note {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #15803d;
+}
+
+.plan-progress-step-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #64748b;
+  padding-top: 2px;
+}
+
+.plan-progress-step--running .plan-progress-step-status {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.plan-progress-step--completed .plan-progress-step-status {
+  color: #16a34a;
+}
+
+@keyframes plan-spin {
+  to { transform: rotate(360deg); }
+}
+
+.plan-progress .spin {
+  animation: plan-spin 0.9s linear infinite;
+}

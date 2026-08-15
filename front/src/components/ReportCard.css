@@ -1,0 +1,115 @@
+/* 与 .msg 相同的横向结构，保证与 AI 气泡左右缘对齐 */
+.report-card-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.report-card-avatar-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.report-card--jump {
+  display: block;
+  max-width: var(--agent-content-max-width, 72%);
+  min-width: 0;
+  flex: 1 1 auto;
+  width: 0;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 14px);
+  background: var(--bg-secondary, #fff);
+  box-shadow: var(--shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+  overflow: hidden;
+  box-sizing: border-box;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.report-card--jump:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.report-card--jump.is-generating .report-card-header {
+  background: #f1f5f9;
+}
+
+.report-card--jump.is-failed .report-card-subtitle {
+  color: #dc2626;
+}
+
+.report-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.report-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.report-card-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.report-card-icon--spin {
+  animation: report-card-spin 0.9s linear infinite;
+}
+
+.report-card-heading {
+  min-width: 0;
+}
+
+.report-card-title {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-primary, #0f172a);
+  word-break: break-word;
+}
+
+.report-card-subtitle {
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-muted, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.report-card-chevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.report-card--jump:hover .report-card-chevron {
+  color: #64748b;
+}
+
+@keyframes report-card-spin {
+  to { transform: rotate(360deg); }
+}

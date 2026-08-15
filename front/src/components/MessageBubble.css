@@ -1,0 +1,93 @@
+.msg {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  animation: fadeIn 0.2s ease;
+}
+
+.msg--agent {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.msg--user {
+  flex-direction: row-reverse;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.msg-avatar--user {
+  background: var(--green);
+  color: #fff;
+}
+
+.msg-avatar--agent {
+  background: var(--green-hover);
+  color: var(--green-dark);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.msg-bubble {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: break-word;
+  white-space: pre-wrap;
+  box-sizing: border-box;
+}
+
+.msg-bubble--user {
+  background: var(--green);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  /* 用户气泡按内容收缩，长文不超过栏宽 */
+  max-width: min(85%, 100%);
+  width: fit-content;
+}
+
+.msg-bubble--agent {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow);
+  white-space: normal;
+}
+
+.msg-text--plain {
+  white-space: pre-wrap;
+}
+
+/* 流式光标 */
+.msg-cursor {
+  display: inline-block;
+  width: 5px;
+  height: 14px;
+  background: var(--green);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.8s step-end infinite;
+  border-radius: 1px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}

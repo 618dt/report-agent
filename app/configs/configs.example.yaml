@@ -1,0 +1,29 @@
+# Node Configuration
+node:
+  name: agent-backend
+  cluster:
+    name: agent-backend-cluster
+
+# Server Configuration
+# Docker 部署请使用 0.0.0.0，否则容器外无法访问
+server:
+  host: "0.0.0.0"
+  port: 8989
+  reload: false
+  debug: false
+
+# Logging Configuration
+log:
+  path: './logs/'
+  level: 'info'
+
+
+# Nacos
+cluster:
+  configs:
+    addresses: ''
+    namespace: ''
+    username: ''
+    password: ''
+    data_id: ''
+    group: ''

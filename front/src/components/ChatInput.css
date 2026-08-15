@@ -1,0 +1,117 @@
+.chat-input-bar {
+  padding: 12px max(20px, calc((100% - var(--chat-column-max-width, 720px)) / 2)) 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+
+.chat-input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--chat-column-max-width, 720px);
+  margin-inline: auto;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow);
+}
+.chat-input-wrap:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-dim);
+}
+
+.chat-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  padding: 2px 4px;
+}
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
+.chat-input:disabled {
+  opacity: 0.4;
+}
+
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+/* 关闭态 hover：仅轻微提亮，避免与开启态混淆 */
+.btn-mode-toggle:hover:not(:disabled):not(.is-on) {
+  border-color: var(--bg-hover);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+/* 开启态：实心填充，与 hover 明确区分 */
+.btn-mode-toggle.is-on {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+.btn-mode-toggle.is-on:hover:not(:disabled) {
+  border-color: var(--green-dark);
+  background: var(--green-dark);
+  color: #fff;
+}
+.btn-mode-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-send,
+.btn-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.btn-send {
+  background: var(--green);
+  color: #fff;
+}
+.btn-send:hover {
+  background: var(--green-dark);
+}
+.btn-send:disabled {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.btn-cancel {
+  background: #fef2f2;
+  color: #ef4444;
+}
+.btn-cancel:hover {
+  background: #fee2e2;
+}
