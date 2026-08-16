@@ -44,7 +44,7 @@ from app.logic.run_task_registry import (
     request_cancel,
 )
 from app.models.chat.chat_model import ChatRun, ChatRunEvent, Conversation, Message
-from app.utils.exception_handler import AppException
+from app.utils.exception_handler import AppException, friendly_agent_error
 from app.utils.langfuse_tracing import attach_langfuse_callbacks
 from app.utils.log import logger
 from app.utils.run_event_bus import (
@@ -1440,6 +1440,8 @@ async def _agent_stream_events(
             "msg": "agent_stream_error",
             "conversation_id": conversation_id,
             "run_id": run_id,
+            "error_type": type(e).__name__,
+            "error": str(e)[:800],
         })
 
         # 失败也尽量提交已流式正文，并收口计划
@@ -1473,12 +1475,11 @@ async def _agent_stream_events(
                 "run_id": run_id,
             })
 
-        # 失败也落助手消息，便于刷新后回溯 events / 排查
+        # 失败也落助手消息，便于刷新后回溯；对用户只展示友好文案
         partial = "".join(assistant_content_parts).strip()
-        err_brief = str(e)[:500]
+        error_code, user_message = friendly_agent_error(e)
         fail_content = (
-            f"{partial}\n\n[执行失败] {err_brief}" if partial
-            else f"[执行失败] {err_brief}"
+            f"{partial}\n\n{user_message}" if partial else user_message
         )
         assistant_msg_id = ""
         try:
@@ -1507,13 +1508,13 @@ async def _agent_stream_events(
             run_id,
             ChatRun.StatusField.FAILED,
             assistant_message_id=assistant_msg_id,
-            error={"code": "agent_stream_error", "message": str(e)},
+            error={"code": error_code, "message": user_message, "detail": str(e)[:800]},
             usage=usage_snapshot,
         )
         status_finalized = True
         seq = await _get_next_seq(run_id)
         error_extra: dict[str, Any] = {
-            "message": "Agent stream error",
+            "message": user_message,
             "usage": usage_snapshot,
         }
         if assistant_msg_id:

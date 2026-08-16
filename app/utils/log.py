@@ -50,16 +50,24 @@ class FileFormatter(logging.Formatter):
             function_name=record.funcName
         )
         if isinstance(record.msg, dict):
-            s = line % ujson.dumps(record.msg, ensure_ascii=False)
+            payload = dict(record.msg)
+            if record.exc_info and record.exc_info[1] is not None:
+                payload.setdefault("error_type", type(record.exc_info[1]).__name__)
+                payload.setdefault("error", str(record.exc_info[1])[:800])
+            s = line % ujson.dumps(payload, ensure_ascii=False)
             # 防止log太大
-            if len(s) > 1000:
-                s = s[:500] + '......' + s[-500:]
+            if len(s) > 2000:
+                s = s[:800] + '......' + s[-800:]
+            if record.exc_info:
+                s += "\n" + self.formatException(record.exc_info)
             return s
         else:
             s = line % str(record.msg)
             # 防止log太大
             if len(s) > 1000:
                 s = s[:500] + '......' + s[-250:]
+            if record.exc_info:
+                s += "\n" + self.formatException(record.exc_info)
             return s
 
 

@@ -5,7 +5,7 @@
 
 """
 from app.agent.artifacts.graph import build_parent_graph, route_after_react
-from app.agent.artifacts.handoff import ArtifactHandoffMiddleware
+from app.agent.artifacts.handoff import ArtifactHandoffMiddleware, HistorySanitizeMiddleware
 from app.agent.artifacts.protocol import (
     ArtifactProtocol,
     extract_post_begin_content,
@@ -21,6 +21,7 @@ from app.agent.artifacts.finalize import artifact_already_emitted, finalize_arti
 
 __all__ = [
     "ArtifactHandoffMiddleware",
+    "HistorySanitizeMiddleware",
     "ArtifactProtocol",
     "REPORT_PROTOCOL",
     "artifact_already_emitted",

@@ -25,8 +25,11 @@ from app.agent.artifacts.finalize import finalize_artifact
 from app.agent.artifacts.report import REPORT_PROTOCOL  # noqa: F401  注册 report 协议
 from app.agent.artifacts.protocol import (
     build_write_messages,
+    extract_confirmed_chapters,
+    format_chapters_block,
     get_protocol,
     resolve_artifact_context,
+    resolve_write_source_messages,
     _message_text,
 )
 from app.agent.artifacts.state import ArtifactAgentState
@@ -89,14 +92,18 @@ def build_parent_graph(*, model, react_agent, checkpointer):
         prompt = protocol.write_prompt if protocol else "请输出完整正文，不要调用工具。"
         title = str(pending.get("title") or "")
         topic = str(pending.get("topic") or "")
-        raw_messages = list(state.get("messages") or [])
+        raw_messages = resolve_write_source_messages(dict(state))
         catalog = merge_catalogs(
             state.get("search_sources"),
             extract_search_catalog(raw_messages),
         )
+        chapters = state.get("confirmed_chapters") or extract_confirmed_chapters(
+            raw_messages,
+        )
         extra = (
             f"\n\n标题：{title}\n主题：{topic}\n"
             "只输出 Markdown 正文，不要前言或工具调用。"
+            f"{format_chapters_block(chapters)}"
             f"{format_catalog_block(catalog)}"
         )
         settings = build_thinking_model_settings(False, disable_thinking=True)
@@ -112,26 +119,40 @@ def build_parent_graph(*, model, react_agent, checkpointer):
                 f"{base_system}{current_time_system_addendum()}\n\n{CITE_SYSTEM_PROMPT}"
             ).strip(),
         )
+        selected_n = sum(
+            1 for item in (chapters or [])
+            if isinstance(item, dict) and item.get("selected", True)
+        )
         logger.info({
             "msg": "artifact_write_start",
             "kind": pending.get("kind"),
             "title": title,
+            "source": (
+                "subgraph" if state.get("write_source_messages") else "parent"
+            ),
+            "source_messages": len(raw_messages),
             "write_messages": len(messages),
             "source_catalog": len(catalog),
+            "selected_chapters": selected_n,
+            "has_web_search": any(
+                getattr(msg, "name", "") == "web_search" for msg in raw_messages
+            ),
         })
         response = await bound.ainvoke(messages, config=_runtime_config())
         original = _message_text(response)
         text = enforce_report_citations(original, catalog)
         if text != original:
-            try:
-                response = response.model_copy(update={"content": text})
-            except Exception:
-                response = AIMessage(content=text)
+            logger.info({
+                "msg": "artifact_citations_rewritten",
+                "title": title,
+                "original_chars": len(original),
+                "rewritten_chars": len(text),
+            })
         return {
-            "messages": [response],
             "pending_artifact": pending,
             "artifact_draft": text,
             "artifact_committed": False,
+            "write_source_messages": [],
         }
 
     async def commit_artifact_node(state: ArtifactAgentState) -> dict[str, Any]:
@@ -183,6 +204,10 @@ def build_parent_graph(*, model, react_agent, checkpointer):
             "messages": [AIMessage(content=text)],
             "pending_artifact": None,
             "artifact_committed": True,
+            "artifact_draft": draft,
+            "write_source_messages": [],
+            "confirmed_chapters": [],
+            "search_sources": [],
         }
 
     builder = StateGraph(ArtifactAgentState)

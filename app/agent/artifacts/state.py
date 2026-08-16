@@ -20,3 +20,5 @@ class ArtifactAgentState(TypedDict, total=False):
     artifact_draft: str
     artifact_committed: bool
     search_sources: list[dict[str, str]]
+    write_source_messages: list[AnyMessage]
+    confirmed_chapters: list[dict[str, Any]]

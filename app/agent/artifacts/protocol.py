@@ -6,10 +6,14 @@
 """
 from __future__ import annotations
 
+import ast
+import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+
+_CONFIRM_TOOL = "request_user_confirmation"
 
 
 @dataclass(frozen=True)
@@ -158,12 +162,107 @@ def _append_same_role(out: list[BaseMessage], msg: BaseMessage) -> None:
     out[-1] = type(msg)(content=combined)
 
 
+def extract_confirmed_chapters(messages: list[Any] | None) -> list[dict[str, Any]]:
+    """从目录确认工具调用/结果中取出用户最终确认的章节。"""
+    proposed: list[dict[str, Any]] = []
+    confirmed: list[dict[str, Any]] | None = None
+    for msg in messages or []:
+        if isinstance(msg, AIMessage):
+            for tc in getattr(msg, "tool_calls", None) or []:
+                if not isinstance(tc, dict):
+                    continue
+                if str(tc.get("name") or "") != _CONFIRM_TOOL:
+                    continue
+                args = tc.get("args") if isinstance(tc.get("args"), dict) else {}
+                chapters = _normalize_chapters(args.get("chapters"))
+                if chapters:
+                    proposed = chapters
+                    confirmed = None
+        elif isinstance(msg, ToolMessage) and str(getattr(msg, "name", "") or "") == _CONFIRM_TOOL:
+            parsed = _parse_jsonish(getattr(msg, "content", None)) or _parse_jsonish(
+                _message_text(msg),
+            )
+            if not parsed:
+                continue
+            action = str(parsed.get("action") or "").strip().lower()
+            payload = parsed.get("payload") if isinstance(parsed.get("payload"), dict) else {}
+            chapters = _normalize_chapters(
+                payload.get("chapters") or parsed.get("chapters"),
+            )
+            if action == "revise":
+                confirmed = None
+                continue
+            if action in ("", "confirm"):
+                confirmed = chapters or proposed
+    return confirmed if confirmed is not None else proposed
+
+
+def format_chapters_block(chapters: list[dict[str, Any]] | None) -> str:
+    """写入写作指令：只覆盖用户确认且 selected=true 的章节。"""
+    selected = [
+        item for item in (chapters or [])
+        if isinstance(item, dict) and item.get("selected", True)
+    ]
+    if not selected:
+        return ""
+    lines = [
+        "【用户已确认且必须写入的章节】",
+        "只写下列章节，不要自行增删或改标题。",
+    ]
+    for i, item in enumerate(selected, 1):
+        title = str(item.get("title") or f"章节 {i}")
+        desc = str(item.get("description") or "").strip()
+        lines.append(f"{i}. {title}" + (f"：{desc}" if desc else ""))
+    return "\n" + "\n".join(lines)
+
+
+def resolve_write_source_messages(state: dict[str, Any] | None) -> list[Any]:
+    """优先用交接时快照的子图 messages（含检索与目录确认）。"""
+    state = state or {}
+    source = state.get("write_source_messages")
+    if source:
+        return list(source)
+    return list(state.get("messages") or [])
+
+
+def _normalize_chapters(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        out.append({
+            "id": str(item.get("id") or str(i + 1)),
+            "title": str(item.get("title") or f"章节 {i + 1}"),
+            "description": str(item.get("description") or ""),
+            "selected": bool(item.get("selected", True)),
+        })
+    return out
+
+
+def _parse_jsonish(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    if value is None:
+        return None
+    text = value.strip() if isinstance(value, str) else str(value).strip()
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            parsed = ast.literal_eval(text)
+        except (SyntaxError, ValueError):
+            return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def sanitize_messages_for_write(messages: list[Any] | None) -> list[BaseMessage]:
     """撰写节点不绑定 tools，必须去掉 tool 角色，否则网关会报 tool 无对应 tool_calls。
 
-    Command.PARENT 交接后，父图里经常只有 begin_* 的 ToolMessage、没有带 tool_calls
-    的 AIMessage；同时未声明 tools 时部分兼容接口会剥掉历史 tool_calls。
-    检索结果转成普通 user 文本，供撰写模型继续使用。
+    检索结果与目录确认转成普通 user 文本，供撰写模型继续使用。
     """
     out: list[BaseMessage] = []
     for msg in messages or []:
@@ -229,3 +328,93 @@ def resolve_artifact_context(state: dict[str, Any] | None) -> tuple[dict[str, An
     if not draft:
         draft = extract_post_begin_content(messages)
     return pending, draft
+
+
+def _tool_call_id(tc: Any) -> str:
+    if isinstance(tc, dict):
+        return str(tc.get("id") or "")
+    return str(getattr(tc, "id", "") or "")
+
+
+def _strip_tool_calls(msg: AIMessage) -> AIMessage:
+    """去掉未配对的 tool_calls，避免后续轮次网关 400。"""
+    text = _message_text(msg)
+    try:
+        return msg.model_copy(update={"tool_calls": [], "content": text or ""})
+    except Exception:
+        return AIMessage(content=text)
+
+
+def _append_text_message(out: list[BaseMessage], msg: BaseMessage) -> None:
+    """合并连续的纯文本同角色消息；带 tool_calls 的 assistant 不合并。"""
+    if not out:
+        out.append(msg)
+        return
+    prev = out[-1]
+    if type(prev) is not type(msg):
+        out.append(msg)
+        return
+    if not isinstance(msg, (HumanMessage, AIMessage)):
+        out.append(msg)
+        return
+    if isinstance(prev, AIMessage) and getattr(prev, "tool_calls", None):
+        out.append(msg)
+        return
+    if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+        out.append(msg)
+        return
+    combined = "\n\n".join(
+        part for part in (_message_text(prev), _message_text(msg)) if part
+    )
+    if combined:
+        out[-1] = type(msg)(content=combined)
+
+
+def sanitize_history_for_model(messages: list[Any] | None) -> list[BaseMessage]:
+    """给后续对话用：丢掉孤立 tool，去掉未配对 tool_calls，合并连续同角色文本。
+
+    Command.PARENT 交接后父图常留下 begin_report 的孤立 ToolMessage，以及
+    报告正文 + wrap_up 两条连续 assistant，DeepSeek 兼容网关会 400。
+    """
+    out: list[BaseMessage] = []
+    pending_ids: set[str] = set()
+
+    def _flush_unmatched_tools() -> None:
+        nonlocal pending_ids
+        if not pending_ids:
+            return
+        prev = out[-1] if out else None
+        if isinstance(prev, AIMessage) and getattr(prev, "tool_calls", None):
+            stripped = _strip_tool_calls(prev)
+            if _message_text(stripped):
+                out[-1] = stripped
+            else:
+                out.pop()
+        pending_ids = set()
+
+    for msg in messages or []:
+        if isinstance(msg, ToolMessage):
+            call_id = str(getattr(msg, "tool_call_id", "") or "")
+            if call_id and call_id in pending_ids:
+                out.append(msg)
+                pending_ids.discard(call_id)
+            continue
+        _flush_unmatched_tools()
+        if isinstance(msg, AIMessage):
+            ids = {_tool_call_id(tc) for tc in (getattr(msg, "tool_calls", None) or [])}
+            ids.discard("")
+            if ids:
+                pending_ids = ids
+                out.append(msg)
+                continue
+            if _message_text(msg):
+                _append_text_message(out, msg)
+            continue
+        if isinstance(msg, HumanMessage):
+            if _message_text(msg):
+                _append_text_message(out, msg)
+            continue
+        if isinstance(msg, SystemMessage) and _message_text(msg):
+            out.append(msg)
+    _flush_unmatched_tools()
+    return out

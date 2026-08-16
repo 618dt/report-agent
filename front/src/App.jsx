@@ -454,7 +454,7 @@ export default function App() {
             ...msg,
             id: messageId || msg.id,
             status: 'failed',
-            content: msg.content || `错误: ${message}`,
+            content: msg.content || message || '服务暂时遇到问题，请稍后重试。',
             reportDrafts: drafts,
             events: finalizeStreamingReasoning(msg.events),
             usage: usage || msg.usage,

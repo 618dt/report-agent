@@ -49,6 +49,7 @@ CITE_SYSTEM_PROMPT = """## 报告引用规范（必须遵守）
    - 禁止编造、改写或用占位域名；系统会丢弃任何不在检索结果中的链接
    - 只列出正文实际用到的 [N]
 4. 禁止上标、[^N]、脚注等其它写法
+5. 同一处不要重复标注相同编号（禁止 [6][6]）；一条论据标一个 [N] 即可
 """
 
 
@@ -136,7 +137,8 @@ def enforce_report_citations(
         cited = sorted(refs.keys())
 
     if not catalog:
-        return body if refs else text
+        cleaned = _collapse_adjacent_duplicate_cites(body if refs else text)
+        return cleaned
 
     resolved: list[dict[str, str]] = []
     old_to_new: dict[int, int] = {}
@@ -156,9 +158,11 @@ def enforce_report_citations(
         url_to_new[url] = new_n
 
     if not resolved:
-        return body
+        return _collapse_adjacent_duplicate_cites(body)
 
-    new_body = _remap_citations(body, old_to_new)
+    new_body = _collapse_adjacent_duplicate_cites(
+        _remap_citations(body, old_to_new),
+    )
     ref_lines = [
         f"{i}. {item['title']} - {item['url']}"
         for i, item in enumerate(resolved, 1)
@@ -310,6 +314,25 @@ def _remap_citations(body: str, old_to_new: dict[int, int]) -> str:
         return f"[{new_n}]" if new_n else match.group(0)
 
     text = _CITE_RE.sub(_repl, text)
+    return re.sub(
+        r"__LINK_(\d+)__",
+        lambda m: protected[int(m.group(1))],
+        text,
+    )
+
+
+def _collapse_adjacent_duplicate_cites(body: str) -> str:
+    """将同一处连续的 [6][6] / [6] [6] 收成一个 [6]。"""
+    if not body:
+        return body
+    protected: list[str] = []
+
+    def _hold(match: re.Match[str]) -> str:
+        protected.append(match.group(0))
+        return f"__LINK_{len(protected) - 1}__"
+
+    text = _MD_LINK_PROTECT_RE.sub(_hold, body)
+    text = re.sub(r"\[(\d+)\](?:[ \t]*\[\1\])+", r"[\1]", text)
     return re.sub(
         r"__LINK_(\d+)__",
         lambda m: protected[int(m.group(1))],

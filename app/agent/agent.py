@@ -14,7 +14,11 @@ from typing import Any, Optional
 from langchain.agents import create_agent
 from langgraph.checkpoint.mongodb import MongoDBSaver
 
-from app.agent.artifacts import ArtifactHandoffMiddleware, build_parent_graph
+from app.agent.artifacts import (
+    ArtifactHandoffMiddleware,
+    HistorySanitizeMiddleware,
+    build_parent_graph,
+)
 from app.agent.artifacts.report import REPORT_PROTOCOL  # noqa: F401
 from app.agent.deepseek_chat import ChatDeepSeekCompat
 from app.agent.skills import SkillMiddleware, load_skills_from_disk
@@ -132,6 +136,7 @@ def get_agent():
     thinking_middleware = ThinkingMiddleware()
     plan_mode_middleware = PlanModeMiddleware()
     artifact_handoff_middleware = ArtifactHandoffMiddleware()
+    history_sanitize_middleware = HistorySanitizeMiddleware()
 
     checkpointer = _create_mongo_checkpointer()
 
@@ -140,6 +145,7 @@ def get_agent():
         tools=ALL_TOOLS,
         system_prompt=system_prompt,
         middleware=[
+            history_sanitize_middleware,
             thinking_middleware,
             time_middleware,
             plan_mode_middleware,
