@@ -48,11 +48,13 @@ from app.utils.exception_handler import AppException
 from app.utils.langfuse_tracing import attach_langfuse_callbacks
 from app.utils.log import logger
 from app.utils.run_event_bus import (
+    event_seq,
     get_last_stream_id,
     is_terminal_event,
     iter_live_run_events,
     publish_run_event,
     replay_run_events,
+    should_persist_to_stream,
 )
 from app.utils.text_helper import count_chinese_chars
 from app.utils.token_usage import RunUsageTracker, extract_usage_from_message
@@ -696,11 +698,7 @@ def _should_emit_payload(
     Returns:
         (should_yield, is_duplicate_terminal)
     """
-    seq = payload.get("seq")
-    try:
-        seq_int = int(seq) if seq is not None else -1
-    except (TypeError, ValueError):
-        seq_int = -1
+    seq_int = event_seq(payload)
     if seq_int >= 0 and (seq_int <= after_seq or seq_int in emitted_seqs):
         return False, is_terminal_event(payload)
     if seq_int >= 0:
@@ -2513,10 +2511,23 @@ def _parse_sse_payload(sse_event: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+# 限制并发 XADD，避免思考/正文峰值打满 Redis 连接池
+_REDIS_PUBLISH_CONCURRENCY = 8
+_redis_publish_sem: asyncio.Semaphore | None = None
+
+
+def _get_redis_publish_sem() -> asyncio.Semaphore:
+    global _redis_publish_sem
+    if _redis_publish_sem is None:
+        _redis_publish_sem = asyncio.Semaphore(_REDIS_PUBLISH_CONCURRENCY)
+    return _redis_publish_sem
+
+
 async def _redis_publish_safe(run_id: str, payload: dict[str, Any]) -> None:
     """后台写 Redis，失败只记日志，不影响本地流式。"""
     try:
-        await publish_run_event(run_id, payload)
+        async with _get_redis_publish_sem():
+            await publish_run_event(run_id, payload)
     except Exception:
         logger.exception({
             "msg": "run_event_redis_publish_task_failed",
@@ -2530,6 +2541,7 @@ async def _publish_sse_payload(payload: dict[str, Any]) -> None:
 
     last_seq 已在 ``_get_next_seq`` 中原子递增，此处不再重复写库。
     本地 hub 同步投递；Redis 异步落盘，避免 XADD 超时卡住 SSE。
+    seq < 0 不写 Redis（回放会跳过思考 delta / usage 快照）。
     """
     if not payload:
         return
@@ -2538,6 +2550,8 @@ async def _publish_sse_payload(payload: dict[str, Any]) -> None:
         return
     # 本地扇出优先（同进程首连不依赖 Redis）
     run_event_hub.publish(run_id, payload)
+    if not should_persist_to_stream(payload):
+        return
     # Redis 仅用于刷新续订，不阻塞生成与首连订阅
     asyncio.create_task(
         _redis_publish_safe(run_id, payload),

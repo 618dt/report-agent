@@ -30,7 +30,7 @@ redis:
   password: change-me-redis    # 宿主机密码，或 = REDIS_PASSWORD
   socket_timeout: 5
   socket_connect_timeout: 5
-  max_connections: 50
+  max_connections: 100
 
 # Tavily
 tavily:

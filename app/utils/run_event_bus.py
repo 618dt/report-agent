@@ -43,13 +43,31 @@ def is_terminal_event(payload: dict[str, Any]) -> bool:
     return str(payload.get("type") or "") in _TERMINAL_TYPES
 
 
+def event_seq(payload: dict[str, Any]) -> int:
+    """解析事件 seq；无法解析时视为 -1（不占业务序号）。"""
+    seq = payload.get("seq") if isinstance(payload, dict) else None
+    try:
+        return int(seq) if seq is not None else -1
+    except (TypeError, ValueError):
+        return -1
+
+
+def should_persist_to_stream(payload: dict[str, Any]) -> bool:
+    """seq < 0 的增量（思考 delta、usage 快照）不写 Stream：回放会跳过它们。"""
+    return event_seq(payload) >= 0
+
+
 async def publish_run_event(run_id: str, payload: dict[str, Any]) -> Optional[str]:
     """将一条 SSE JSON 载荷写入 Redis Stream。
 
+    seq < 0 的事件直接跳过（不占连接）。
+
     Returns:
-        str | None -- Stream entry id，失败时 None
+        str | None -- Stream entry id，失败或跳过时 None
     """
     if not run_id or not isinstance(payload, dict):
+        return None
+    if not should_persist_to_stream(payload):
         return None
     key = stream_key(run_id)
     body = json.dumps(payload, ensure_ascii=False)
@@ -101,18 +119,9 @@ async def replay_run_events(
         payload = _parse_fields(fields)
         if payload is None:
             continue
-        seq = payload.get("seq")
-        try:
-            seq_int = int(seq) if seq is not None else -1
-        except (TypeError, ValueError):
-            seq_int = -1
-        # seq=-1 的增量事件在 after_seq 之后也需要（与直播一致时靠 last_id 续订）
-        # 回放阶段：seq>=0 且 <=after_seq 跳过；seq=-1 若夹在已读区间则仍下发可能导致重复，
-        # 重连场景前端已有 partial_content，增量以 after_seq 之后的 seq>=0 为主，
-        # seq=-1 仅在 live 阶段转发。
-        if seq_int >= 0 and seq_int <= after_seq:
-            continue
-        if seq_int < 0:
+        seq_int = event_seq(payload)
+        # seq < 0 不回放（思考 delta / usage 只在 live 阶段经内存 hub 下发）
+        if seq_int < 0 or seq_int <= after_seq:
             continue
         results.append((str(entry_id), payload))
     return results
