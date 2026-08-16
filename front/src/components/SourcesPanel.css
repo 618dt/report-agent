@@ -61,6 +61,15 @@
   color: #fff;
 }
 
+.source-item--static {
+  cursor: default;
+}
+
+.source-item--static:hover {
+  background: var(--bg-tertiary, #f1f5f9);
+  color: var(--text-secondary, #64748b);
+}
+
 .source-index {
   display: inline-flex;
   align-items: center;

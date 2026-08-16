@@ -6,7 +6,7 @@ import InteractivePanel from './InteractivePanel.jsx'
 import PlanProgressCard from './PlanProgressCard.jsx'
 import ConfirmResultCard, { extractConfirmResultsFromEvents } from './ConfirmResultCard.jsx'
 import ReportCard from './ReportCard.jsx'
-import { resolveSources } from './SourcesPanel.jsx'
+import { resolveSources } from './sources.js'
 import './ChatWindow.css'
 
 /** 距底部多少像素内视为「仍贴底」，可恢复自动滚动 */

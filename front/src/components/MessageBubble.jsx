@@ -12,7 +12,7 @@ export default function MessageBubble({
 }) {
   const isAgent = message.sender_id === 'agent'
   const isUser = !isAgent
-  const showSources = isAgent && !isStreaming && sources && sources.some(s => s?.url)
+  const showSources = isAgent && !isStreaming && sources && sources.some(s => s?.url || s?.title)
 
   if (hidden) return null
 

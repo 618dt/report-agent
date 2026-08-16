@@ -20,7 +20,6 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.config import get_config
 
 from app.agent.tools.local.begin_report import BEGIN_REPORT_TOOL
-from app.agent.tools.local.submit_report import SUBMIT_REPORT_TOOL
 from app.utils.log import logger
 
 # DeepSeek：深度思考开 → enabled + max；关 → disabled（闲聊/简单对话不思考）
@@ -45,10 +44,8 @@ def _resolve_deep_thinking() -> bool:
 def _should_disable_thinking_for_report(messages: Sequence[Any] | None) -> bool:
     """报告撰写及相关收尾轮是否应关闭 thinking
 
-    自 begin_report 起关闭，直到 submit 之后又出现新的 HumanMessage。
-    若 submit 后立刻重新开启 thinking，上一轮（thinking=off）带 tool_calls 的
-    assistant 消息没有 reasoning_content，DeepSeek 会 400：
-    "reasoning_content in the thinking mode must be passed back"。
+    自 begin_report 起关闭，直到用户再发一条 HumanMessage。
+    提交已改为图节点，消息里可能没有 submit_report。
 
     Arguments:
         messages -- 当前模型请求中的消息列表
@@ -60,7 +57,6 @@ def _should_disable_thinking_for_report(messages: Sequence[Any] | None) -> bool:
         return False
 
     begin_idx: int | None = None
-    submit_idx: int | None = None
     last_human_idx: int | None = None
 
     for i, msg in enumerate(messages):
@@ -72,16 +68,10 @@ def _should_disable_thinking_for_report(messages: Sequence[Any] | None) -> bool:
         name = getattr(msg, "name", None) or ""
         if name == BEGIN_REPORT_TOOL:
             begin_idx = i
-        elif name == SUBMIT_REPORT_TOOL:
-            submit_idx = i
 
     if begin_idx is None:
         return False
-    # 尚未 submit：撰写正文轮
-    if submit_idx is None or submit_idx < begin_idx:
-        return True
-    # 已 submit：收尾轮仍关闭，直到用户下一条消息
-    if last_human_idx is not None and last_human_idx > submit_idx:
+    if last_human_idx is not None and last_human_idx > begin_idx:
         return False
     return True
 
@@ -122,8 +112,8 @@ class ThinkingMiddleware(AgentMiddleware):
     - False：关闭 thinking（默认，适合闲聊/简单对话）
     - True：开启 thinking，reasoning_effort=max
 
-    报告撰写至 submit 后收尾完成前强制关闭 thinking，避免正文进思考块，
-    并防止 disable→enable 切换触发 DeepSeek reasoning_content 回传校验失败。
+    报告撰写阶段（begin_report 之后、下一轮用户消息之前）强制关闭 thinking，
+    避免正文进思考块。
     """
 
     async def awrap_model_call(

@@ -29,7 +29,7 @@ from langgraph.types import Command
 from pymongo import ReturnDocument
 
 from app.agent import get_agent
-from app.agent.plan_progress import apply_step_status, build_plan_snapshot
+from app.agent.plan_progress import apply_step_status, build_plan_snapshot, close_running_steps
 from app.agent.tools.local import (
     BEGIN_REPORT_TOOL,
     SUBMIT_REPORT_TOOL,
@@ -1233,7 +1233,7 @@ async def _agent_stream_events(
                                 delta = full_content
                             last_full_content = full_content
                             if delta:
-                                if report_tracker.content_mode:
+                                if report_tracker.content_mode and not report_tracker.finalized:
                                     # 报告正文：走 artifact 流，不进聊天气泡
                                     async for sse in report_tracker.ingest_content_delta(
                                         delta,
@@ -1289,19 +1289,23 @@ async def _agent_stream_events(
                         interrupted = True
                     # 处理节点输出：从 "model"/"tools" 节点提取工具调用和响应
                     for source, update in data.items():
-                        if source in ("model", "tools"):
-                            messages = update.get("messages", [])
+                        if source == "commit_artifact":
+                            report_tracker.mark_finalized()
+                            continue
+                        if source == "wrap_up":
+                            report_tracker.deactivate_content_mode()
+                            continue
+                        if source in ("model", "tools", "write_artifact"):
+                            messages = update.get("messages", []) if isinstance(update, dict) else []
                             if messages:
                                 last_msg = messages[-1]
-                                # model 节点：落库完整思考段（若有）
-                                if source == "model":
+                                if source in ("model", "write_artifact"):
                                     async for sse in _emit_reasoning_event(
                                         last_msg,
                                         conversation_id=conversation_id,
                                         run_id=run_id,
                                     ):
                                         yield sse
-                                    # 流式未带 usage 时，用终态消息兜底校正
                                     api_usage = extract_usage_from_message(last_msg)
                                     if api_usage and usage_tracker.commit_usage(
                                         api_usage,
@@ -1313,16 +1317,17 @@ async def _agent_stream_events(
                                         await _persist_run_usage(
                                             run_id, usage_tracker.final_snapshot(),
                                         )
+                                event_source = (
+                                    "model" if source == "write_artifact" else source
+                                )
                                 sse_list = await _format_node_message_event(
-                                    source, last_msg,
+                                    event_source, last_msg,
                                     conversation_id, run_id,
                                     report_tracker=report_tracker,
                                 )
                                 for sse in sse_list:
                                     yield sse
-                                # 新的模型轮次开始时重置 content / reasoning 累积基准，
-                                # 避免把上一轮正文拼进本轮 delta
-                                if source == "model":
+                                if source in ("model", "write_artifact"):
                                     last_full_content = ""
                                     last_reasoning = ""
                                     usage_tracker.begin_turn()
@@ -1366,7 +1371,31 @@ async def _agent_stream_events(
             })
             return
 
-        # ---- 正常完成：保存助手消息到 MongoDB ----
+        # ---- 正常完成：先收口产物，再保存助手消息 ----
+        async for sse in report_tracker.flush_all(
+            conversation_id=conversation_id,
+            run_id=run_id,
+            force=True,
+        ):
+            yield sse
+        for sse in await _maybe_finalize_from_tracker(
+            report_tracker,
+            conversation_id=conversation_id,
+            run_id=run_id,
+        ):
+            yield sse
+        plan_close = await _close_plan_on_terminal(
+            conversation_id=conversation_id,
+            run_id=run_id,
+            has_artifact=(
+                report_tracker.finalized
+                or await _artifact_already_emitted(run_id)
+            ),
+            note="报告已提交",
+        )
+        if plan_close:
+            yield plan_close
+
         assistant_content = "".join(assistant_content_parts)
         assistant_msg_id = await _persist_assistant_message(
             conversation_id=conversation_id,
@@ -1414,6 +1443,37 @@ async def _agent_stream_events(
             "conversation_id": conversation_id,
             "run_id": run_id,
         })
+
+        # 失败也尽量提交已流式正文，并收口计划
+        try:
+            async for sse in report_tracker.flush_all(
+                conversation_id=conversation_id,
+                run_id=run_id,
+                force=True,
+            ):
+                yield sse
+            for sse in await _maybe_finalize_from_tracker(
+                report_tracker,
+                conversation_id=conversation_id,
+                run_id=run_id,
+            ):
+                yield sse
+            plan_close = await _close_plan_on_terminal(
+                conversation_id=conversation_id,
+                run_id=run_id,
+                has_artifact=(
+                    report_tracker.finalized
+                    or await _artifact_already_emitted(run_id)
+                ),
+                note="执行失败",
+            )
+            if plan_close:
+                yield plan_close
+        except Exception:
+            logger.exception({
+                "msg": "artifact_finalize_on_error_failed",
+                "run_id": run_id,
+            })
 
         # 失败也落助手消息，便于刷新后回溯 events / 排查
         partial = "".join(assistant_content_parts).strip()
@@ -1480,6 +1540,20 @@ async def _agent_stream_events(
                     },
                     usage=usage_snapshot,
                 )
+                try:
+                    plan_close = await _close_plan_on_terminal(
+                        conversation_id=conversation_id,
+                        run_id=run_id,
+                        has_artifact=await _artifact_already_emitted(run_id),
+                        note="已取消",
+                    )
+                    if plan_close:
+                        yield plan_close
+                except Exception:
+                    logger.exception({
+                        "msg": "plan_close_on_cancel_failed",
+                        "run_id": run_id,
+                    })
                 seq = await _get_next_seq(run_id)
                 yield _make_sse(
                     "cancelled", conversation_id, run_id, seq,
@@ -2007,6 +2081,7 @@ class _SubmitReportStreamTracker:
         # key: tool_call_id 或 index 占位
         self._by_key: dict[str, dict[str, Any]] = {}
         self._content_mode: bool = False
+        self._finalized: bool = False
         self._content_state: dict[str, Any] = {
             "tool_call_id": "",
             "title": "",
@@ -2023,6 +2098,26 @@ class _SubmitReportStreamTracker:
         """是否处于「正文即报告」流式模式"""
         return self._content_mode
 
+    @property
+    def finalized(self) -> bool:
+        """是否已发出终态 artifact。"""
+        return self._finalized
+
+    def mark_finalized(self) -> None:
+        """标记已提交并关闭正文路由。"""
+        self._finalized = True
+        self._content_mode = False
+
+    def get_content_meta(self) -> dict[str, Any]:
+        """content 模式的 title/topic/tool_call_id。"""
+        state = self._content_state
+        return {
+            "kind": "report",
+            "tool_call_id": str(state.get("tool_call_id") or ""),
+            "title": str(state.get("title") or ""),
+            "topic": str(state.get("topic") or ""),
+        }
+
     def activate_content_mode(
         self,
         *,
@@ -2032,6 +2127,7 @@ class _SubmitReportStreamTracker:
     ) -> None:
         """开启正文路由为报告流"""
         self._content_mode = True
+        self._finalized = False
         self._content_state = {
             "tool_call_id": tool_call_id or f"report_{int(time.time())}",
             "title": title or "",
@@ -2951,6 +3047,77 @@ async def _auto_plan_step_for_report(
         step_id=step_id,
         status=status,
         note=note,
+    )
+
+
+async def _artifact_already_emitted(run_id: str) -> bool:
+    """该 run 是否已有终态 artifact。"""
+    from app.agent.artifacts.finalize import artifact_already_emitted
+    return await artifact_already_emitted(run_id)
+
+
+async def _maybe_finalize_from_tracker(
+    report_tracker: _SubmitReportStreamTracker,
+    *,
+    conversation_id: str,
+    run_id: str,
+) -> list[str]:
+    """流结束兜底：有正文但未 submit 时由系统提交。"""
+    if report_tracker.finalized:
+        return []
+    markdown = report_tracker.get_streamed_markdown()
+    if not markdown.strip():
+        return []
+    from app.agent.artifacts.finalize import finalize_artifact
+    events = await finalize_artifact(
+        kind="report",
+        markdown=markdown,
+        meta=report_tracker.get_content_meta(),
+        conversation_id=conversation_id,
+        run_id=run_id,
+        publish=False,
+    )
+    if events:
+        report_tracker.mark_finalized()
+    return events
+
+
+async def _close_plan_on_terminal(
+    conversation_id: str,
+    run_id: str,
+    *,
+    has_artifact: bool,
+    note: str = "",
+) -> str | None:
+    """ChatRun 终态时收口仍为 running 的计划步骤。"""
+    run_doc = await ChatRun.a_p_col.find_one({"_id": run_id, "is_deleted": 0})
+    plan = (run_doc or {}).get("plan") or {}
+    if not plan.get("steps"):
+        return None
+    updated = close_running_steps(
+        plan,
+        has_artifact=has_artifact,
+        note=note,
+    )
+    if updated is plan:
+        return None
+    await ChatRun.a_p_col.update_one(
+        {"_id": run_id},
+        {"$set": {
+            "plan": updated,
+            "update_time": datetime.now(timezone.utc),
+        }},
+    )
+    logger.info({
+        "msg": "plan_closed_on_terminal",
+        "run_id": run_id,
+        "has_artifact": has_artifact,
+        "plan_status": updated.get("status"),
+    })
+    return await _emit_plan_event(
+        conversation_id=conversation_id,
+        run_id=run_id,
+        plan=updated,
     )
 
 

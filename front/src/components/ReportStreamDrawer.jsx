@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X, Copy, Check, FileText, Loader2 } from 'lucide-react'
 import MarkdownContent from './MarkdownContent.jsx'
-import SourcesPanel, { resolveSources } from './SourcesPanel.jsx'
+import SourcesPanel from './SourcesPanel.jsx'
+import { resolveSources } from './sources.js'
 import './ReportStreamDrawer.css'
 
 const WIDTH_STORAGE_KEY = 'report-drawer-width'
@@ -47,7 +48,7 @@ export default function ReportStreamDrawer({ open, report, onClose }) {
     ? report.word_count
     : (markdown.match(/[\u4e00-\u9fff]/g) || []).length
   const sources = markdown
-    ? resolveSources(markdown, report?.events || [])
+    ? resolveSources(markdown, report?.events || [], { allowEventFallback: false })
     : []
 
   useEffect(() => {
@@ -228,7 +229,7 @@ export default function ReportStreamDrawer({ open, report, onClose }) {
             <>
               <MarkdownContent content={markdown} sources={sources} />
               {isGenerating && <span className="report-drawer-cursor" aria-hidden="true" />}
-              {!isGenerating && sources.some(s => s?.url) && (
+              {!isGenerating && sources.some(s => s?.url || s?.title) && (
                 <SourcesPanel sources={sources} title="参考来源" />
               )}
             </>

@@ -24,7 +24,7 @@ def normalize_plan_steps(steps: list[dict[str, Any]] | None) -> list[dict[str, A
             continue
         selected = bool(step.get("selected", True))
         status = str(step.get("status") or "").strip().lower()
-        if status not in {"pending", "running", "completed", "skipped"}:
+        if status not in {"pending", "running", "completed", "skipped", "failed"}:
             status = "pending" if selected else "skipped"
         elif not selected and status == "pending":
             status = "skipped"
@@ -52,7 +52,7 @@ def build_plan_snapshot(
     """构建完整计划快照（供落库与 SSE）"""
     norm_steps = normalize_plan_steps(steps)
     completed = sum(
-        1 for s in norm_steps if s["status"] in ("completed", "skipped")
+        1 for s in norm_steps if s["status"] in ("completed", "skipped", "failed")
     )
     total = len(norm_steps)
     running_id = next(
@@ -60,7 +60,8 @@ def build_plan_snapshot(
         None,
     )
     if total and completed >= total:
-        status = "completed"
+        failed_any = any(s["status"] == "failed" for s in norm_steps)
+        status = "failed" if failed_any else "completed"
     elif running_id:
         status = "running"
     else:
@@ -108,6 +109,37 @@ def apply_step_status(
             risks=plan.get("risks"),
             assumptions=plan.get("assumptions"),
         )
+    return build_plan_snapshot(
+        title=str(plan.get("title") or ""),
+        goal=str(plan.get("goal") or ""),
+        steps=steps,
+        risks=plan.get("risks"),
+        assumptions=plan.get("assumptions"),
+    )
+
+
+def close_running_steps(
+    plan: dict[str, Any],
+    *,
+    has_artifact: bool = True,
+    note: str = "",
+) -> dict[str, Any]:
+    """将仍为 running 的步骤收口为 completed（有产物）或 failed（无产物）。"""
+    target = "completed" if has_artifact else "failed"
+    default_note = note or ("已提交" if has_artifact else "未完成")
+    steps = [dict(s) for s in (plan.get("steps") or [])]
+    changed = False
+    for step in steps:
+        if str(step.get("status") or "") != "running":
+            continue
+        step["status"] = target
+        if default_note and not step.get("note"):
+            step["note"] = default_note
+        elif default_note:
+            step["note"] = default_note
+        changed = True
+    if not changed:
+        return plan
     return build_plan_snapshot(
         title=str(plan.get("title") or ""),
         goal=str(plan.get("goal") or ""),

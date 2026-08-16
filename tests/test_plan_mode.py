@@ -5,7 +5,7 @@ import json
 
 from langchain_core.messages import ToolMessage
 
-from app.agent.plan_progress import apply_step_status, build_plan_snapshot
+from app.agent.plan_progress import apply_step_status, build_plan_snapshot, close_running_steps
 from app.agent.plan_mode_middleware import (
     _SIDE_EFFECT_TOOLS,
     is_plan_confirmed_from_messages,
@@ -81,10 +81,40 @@ def test_plan_progress_apply():
     assert done["completed_count"] == 3
 
 
+def test_close_running_steps_completed_when_artifact():
+    plan = build_plan_snapshot(
+        title="t",
+        goal="g",
+        steps=[
+            {"id": "s1", "title": "目录", "status": "completed"},
+            {"id": "s3", "title": "撰写并提交报告", "status": "running"},
+        ],
+    )
+    closed = close_running_steps(plan, has_artifact=True, note="报告已提交")
+    assert closed is not plan
+    assert closed["steps"][1]["status"] == "completed"
+    assert closed["status"] == "completed"
+    unchanged = close_running_steps(closed, has_artifact=True)
+    assert unchanged is closed
+
+
+def test_close_running_steps_failed_without_artifact():
+    plan = build_plan_snapshot(
+        title="t",
+        goal="g",
+        steps=[{"id": "s3", "title": "撰写", "status": "running"}],
+    )
+    closed = close_running_steps(plan, has_artifact=False, note="未完成")
+    assert closed["steps"][0]["status"] == "failed"
+    assert closed["status"] == "failed"
+
+
 if __name__ == "__main__":
     test_chat_request_plan_mode_default()
     test_chat_request_plan_mode_true()
     test_side_effect_tools()
     test_plan_confirmed_from_messages()
     test_plan_progress_apply()
+    test_close_running_steps_completed_when_artifact()
+    test_close_running_steps_failed_without_artifact()
     print("plan_mode smoke checks passed")

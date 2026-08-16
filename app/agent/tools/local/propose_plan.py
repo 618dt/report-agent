@@ -26,8 +26,8 @@ def propose_plan(
 ) -> dict[str, Any]:
     """向用户提交可编辑的执行计划（仅 Plan 模式使用）。
 
-    在调用任何副作用工具（如 request_user_confirmation、begin_report、
-    submit_report）之前必须先调用本工具并等待用户确认。
+    在调用任何副作用工具（如 request_user_confirmation、begin_report）
+    之前必须先调用本工具并等待用户确认。
     禁止用 Markdown 清单在对话里展示计划代替本工具。
 
     Arguments:

@@ -11,19 +11,18 @@
  */
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { sourceHasDisplay, stripSourcesSection } from './sources.js'
 import './MarkdownContent.css'
 
 export default function MarkdownContent({ content, sources = [] }) {
   if (!content) return null
 
-  // 构建来源 URL 索引（下标 = 引用编号 - 1，保留空位以对齐编号）
-  const sourceUrls = sources.map(s => (s && s.url) || '')
-  const hasSources = sourceUrls.some(Boolean)
+  const hasSources = sources.some(sourceHasDisplay)
 
   // 有 SourcesPanel 时去掉正文末尾「参考来源」章节，避免重复展示
   let text = content
   if (hasSources) {
-    text = _stripSourcesSection(text)
+    text = stripSourcesSection(text)
   }
 
   // 修复 CommonMark 对中文闭式标点旁 **加粗** 解析失败（如 **《标题》**）
@@ -31,14 +30,14 @@ export default function MarkdownContent({ content, sources = [] }) {
 
   // 预处理：将 [N] 和 [^N] 引用标记替换为 Markdown 链接格式
   // 这样 react-markdown 能正确渲染，然后由 LinkRenderer 检测并渲染为徽章
-  const processedContent = _preprocessCitations(text, sourceUrls)
+  const processedContent = _preprocessCitations(text, sources)
 
   return (
     <div className="markdown-content">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: (props) => <LinkRenderer {...props} sourceUrls={sourceUrls} />,
+          a: LinkRenderer,
           code: CodeRenderer,
           pre: PreRenderer,
           table: TableRenderer,
@@ -49,19 +48,6 @@ export default function MarkdownContent({ content, sources = [] }) {
       </ReactMarkdown>
     </div>
   )
-}
-
-/**
- * 去掉正文中的「参考来源」章节（由 SourcesPanel 统一展示）
- */
-function _stripSourcesSection(text) {
-  return text
-    .replace(
-      /(?:^|\n)#{1,3}\s*参考来源\s*\n[\s\S]*?(?=\n#{1,3}\s+\S|\n---\s*$|$)/i,
-      '\n'
-    )
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
 }
 
 /**
@@ -100,7 +86,7 @@ function _fixCjkEmphasis(text) {
  *
  * 注意：不替换已经是 Markdown 链接一部分的方括号（如 [text](url)）
  */
-function _preprocessCitations(text, sourceUrls) {
+function _preprocessCitations(text, sources) {
   // 先将已有的 Markdown 链接占位保护，避免误替换
   const links = []
   const protected_ = text.replace(
@@ -113,11 +99,17 @@ function _preprocessCitations(text, sourceUrls) {
 
   const replaceCitation = (match, num) => {
     const idx = parseInt(num, 10) - 1
-    if (sourceUrls && idx >= 0 && idx < sourceUrls.length && sourceUrls[idx]) {
-      return `[${num}](${sourceUrls[idx]})`
+    const src = Array.isArray(sources) ? sources[idx] : null
+    if (src?.url) {
+      const title = (src.title || '').replace(/"/g, '')
+      return title ? `[${num}](${src.url} "${title}")` : `[${num}](${src.url})`
     }
-    // 无对应来源：隐藏标记
-    return ''
+    if (src?.title) {
+      const title = src.title.replace(/"/g, '')
+      return `[${num}](#cite-${num} "${title}")`
+    }
+    // 无对应来源：仍显示角标，避免把行内 [N] 吞掉
+    return `[${num}](#cite-${num})`
   }
 
   // 替换 [^N] 格式（脚注式引用）
@@ -143,7 +135,7 @@ function _preprocessCitations(text, sourceUrls) {
  * - 外部链接：新窗口打开，带安全属性
  * - 引用标注 [N]：渲染为蓝色可点击上标徽章
  */
-function LinkRenderer({ href, children, ...props }) {
+function LinkRenderer({ href, children, title, ...props }) {
   if (!href) return <span>{children}</span>
 
   const text = String(children)
@@ -151,16 +143,25 @@ function LinkRenderer({ href, children, ...props }) {
   const isCitation = /^\[?\d+\]?$/.test(text)
 
   if (isCitation) {
+    const label = text.replace(/[\[\]]/g, '')
+    const tooltip = title || href
+    if (href.startsWith('#cite-')) {
+      return (
+        <span className="citation-badge citation-badge--plain" title={tooltip}>
+          {label}
+        </span>
+      )
+    }
     return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="citation-badge"
-        title={href}
+        title={tooltip}
         {...props}
       >
-        {text.replace(/[\[\]]/g, '')}
+        {label}
       </a>
     )
   }

@@ -418,7 +418,7 @@ async def logic_get_run_events(
             'conversation_id': conversation_id,
             'is_deleted': 0,
         },
-        {'_id': 1, 'usage': 1, 'status': 1},
+        {'_id': 1, 'usage': 1, 'status': 1, 'plan': 1, 'partial_report': 1},
     )
     run_docs = await runs_cursor.to_list(length=len(run_ids) or 1)
     runs = [
@@ -426,6 +426,8 @@ async def logic_get_run_events(
             '_id': doc['_id'],
             'usage': doc.get('usage') or None,
             'status': doc.get('status', ''),
+            'plan': doc.get('plan') or None,
+            'partial_report': doc.get('partial_report') or None,
         }
         for doc in run_docs
     ]
