@@ -33,6 +33,28 @@ _MD_LINK_PROTECT_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _TITLE_TAIL_RE = re.compile(r"[，,][^，,]*$|第[\d\-—~至到]+页.*$")
 
 
+CITE_SYSTEM_PROMPT = """## 报告引用规范（必须遵守）
+
+与对话系统提示中的「引用规范」一致，撰写报告时必须执行：
+
+1. **统一编号，禁止沿用单次搜索编号**
+   - 每次 web_search 返回的 1.~5. 只是该次工具结果的局部编号
+   - 写报告前把本轮用到的来源按 URL 去重，再从 1 连续编号
+   - 行内 [N] 只能对应该最终列表的第 N 条
+2. **行内必须标注**
+   - 仅使用 [1]、[2] 这种方括号数字，紧跟被引用的句子或数据
+   - 示例：2024年新能源汽车销量同比增长35%[1]，市场渗透率首次突破40%[2]
+   - 禁止只写「## 参考来源」标题却不在正文标注、也不列条目
+3. **文末必须列出参考来源（含 URL）**
+   - 标题必须是「## 参考来源」（不要写成「## 六、参考来源」）
+   - 格式：
+     1. 标题 - https://example.com/a
+     2. 标题 - https://example.com/b
+   - 只列出正文实际用到的 [N]；不要输出空的参考来源章节
+4. 禁止上标、[^N]、脚注等其它写法；不要编造不存在的 URL
+"""
+
+
 def extract_search_catalog(messages: list[Any] | None) -> list[dict[str, str]]:
     """从工具结果抽出去重后的 title+url（web_search 的 SOURCES_JSON / web_fetch URL）。"""
     catalog: list[dict[str, str]] = []
@@ -46,6 +68,7 @@ def extract_search_catalog(messages: list[Any] | None) -> list[dict[str, str]]:
                 _push_source(catalog, seen, match.group(1), match.group(1))
             continue
         _push_sources_json(catalog, seen, text)
+        _push_numbered_search_lines(catalog, seen, text)
         if isinstance(msg, ToolMessage) and name == "web_search":
             continue
         if name == "web_fetch":
@@ -56,23 +79,15 @@ def extract_search_catalog(messages: list[Any] | None) -> list[dict[str, str]]:
 
 
 def format_catalog_block(catalog: list[dict[str, str]]) -> str:
-    """写入撰写提示：强制 [N] 使用清单编号，文末必须带 URL。"""
+    """检索 URL 池：供模型选用来源，编号由模型按引用顺序重编（与 industry-agent 一致）。"""
     if not catalog:
-        return (
-            "\n本轮没有 web_search / web_fetch 来源，"
-            "不要编造参考来源，也不要伪造 URL。"
-        )
+        return ""
     lines = [
-        "正文里每一个来自检索的事实、数据、政策、财报或估值判断，句末必须紧跟 [N]。",
-        "正确示例：xxx [1]",
-        "禁止只在文末列参考来源、正文却没有任何 [N]。",
-        "行内 [N] 的 N 必须是下表编号。",
-        "文末标题必须是「## 参考来源」。每条格式必须是：",
-        "N. 标题 - https://完整URL",
-        "禁止无链接书目（不要只写「XX年报第12页」却不附 URL）。",
-        "只列出正文实际引用过的编号，不要把整张清单粘贴进文末。",
+        "下列为本轮 web_search / web_fetch 去重后的网页，文末参考来源的 URL 必须从中选取。",
+        "行内 [N] 按你在正文中的引用顺序从 1 重新编号，不要沿用下表或单次搜索的局部编号。",
+        "未在正文用 [N] 引用的条目不要写入「## 参考来源」。",
         "",
-        "【可用来源清单】",
+        "【本轮检索网页】",
     ]
     for i, item in enumerate(catalog, 1):
         lines.append(f"{i}. {item['title']}\n   {item['url']}")
@@ -122,6 +137,30 @@ def enforce_report_citations(
         for i, item in enumerate(resolved, 1)
     ]
     return f"{new_body.rstrip()}\n\n## 参考来源\n\n" + "\n".join(ref_lines) + "\n"
+
+
+def _push_numbered_search_lines(
+    catalog: list[dict[str, str]],
+    seen: set[str],
+    text: str,
+) -> None:
+    """兼容无 SOURCES_JSON 时的 web_search 文本：1. 标题\\n   https://..."""
+    if not text:
+        return
+    current_title = ""
+    for raw in text.splitlines():
+        line = raw.strip()
+        numbered = re.match(r"^(\d+)\.\s+(.+)$", line)
+        if numbered:
+            current_title = re.sub(
+                r"\s*\(score=[^)]+\)\s*$",
+                "",
+                numbered.group(2),
+            ).strip()
+            continue
+        if current_title and line.startswith("http"):
+            _push_source(catalog, seen, current_title, line)
+            current_title = ""
 
 
 def _push_sources_json(

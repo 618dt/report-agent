@@ -14,6 +14,7 @@ from langgraph.config import get_config
 from langgraph.graph import END, START, StateGraph
 
 from app.agent.artifacts.cite import (
+    CITE_SYSTEM_PROMPT,
     enforce_report_citations,
     extract_search_catalog,
     format_catalog_block,
@@ -28,6 +29,7 @@ from app.agent.artifacts.protocol import (
 )
 from app.agent.artifacts.state import ArtifactAgentState
 from app.agent.thinking_middleware import build_thinking_model_settings
+from app.configs import cluster_configs
 from app.utils.log import logger
 from app.utils.text_helper import count_chinese_chars
 
@@ -93,7 +95,15 @@ def build_parent_graph(*, model, react_agent, checkpointer):
         )
         settings = build_thinking_model_settings(False, disable_thinking=True)
         bound = model.bind(**settings)
-        messages = build_write_messages(raw_messages, prompt + extra)
+        base_system = str(
+            (cluster_configs.get("llm") or {}).get("deepseek", {}).get("system_prompt")
+            or ""
+        )
+        messages = build_write_messages(
+            raw_messages,
+            prompt + extra,
+            system_prompt=f"{base_system}\n\n{CITE_SYSTEM_PROMPT}".strip(),
+        )
         logger.info({
             "msg": "artifact_write_start",
             "kind": pending.get("kind"),

@@ -164,7 +164,15 @@ def test_resolve_artifact_context_prefers_state_draft():
     assert draft == "from-state"
 
 
-def test_extract_search_catalog_from_sources_json():
+def test_format_catalog_block_empty_is_silent():
+    from app.agent.artifacts.cite import format_catalog_block
+
+    assert format_catalog_block([]) == ""
+    block = format_catalog_block([
+        {"title": "年报", "url": "https://picc.example/ar2023"},
+    ])
+    assert "必须是下表编号" not in block
+    assert "从 1 重新编号" in block
     from app.agent.artifacts.cite import extract_search_catalog
 
     payload = (

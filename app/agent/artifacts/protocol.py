@@ -198,6 +198,8 @@ def sanitize_messages_for_write(messages: list[Any] | None) -> list[BaseMessage]
 def build_write_messages(
     messages: list[Any] | None,
     write_prompt: str,
+    *,
+    system_prompt: str = "",
 ) -> list[BaseMessage]:
     """撰写请求消息：去 tool 角色，并合并写作指令，避免连续两条 user。"""
     out = sanitize_messages_for_write(messages)
@@ -206,6 +208,9 @@ def build_write_messages(
         _append_same_role(out, HumanMessage(content=prompt))
     if not out:
         out.append(HumanMessage(content=prompt or "请输出完整正文，不要调用工具。"))
+    sys = (system_prompt or "").strip()
+    if sys:
+        out.insert(0, SystemMessage(content=sys))
     return out
 
 
