@@ -129,6 +129,17 @@ export default function App() {
         pendingConvRef.current = conversationId
         // 新会话在流式过程中就绑定 id，避免结束后 loadMessages 冲掉 HITL 状态
         loadedConvRef.current = conversationId
+        // 首条消息创建会话后立刻出现在侧边栏，不必等整轮流式结束
+        setActiveConvId((prev) => (prev === conversationId ? prev : conversationId))
+        void fetchConversations(0, 50)
+          .then((res) => {
+            if (res.success && res.data?.items) {
+              setConversations(res.data.items)
+            }
+          })
+          .catch((err) => {
+            console.error('加载会话列表失败:', err)
+          })
       }
       setMessages(prev => {
         if (prev.some(m => m.run_id === runId)) return prev
