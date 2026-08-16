@@ -67,16 +67,20 @@ class CurrentTimeMiddleware(AgentMiddleware):
         Returns:
             ModelResponse -- 模型响应
         """
-        time_addendum = (
-            "\n\n## 当前时间\n\n"
-            f"现在是：**{_format_now()}**。\n"
-            "- 回答涉及「今天 / 本周 / 今年 / 最新 / 近期」时，必须以该时间为准。\n"
-            "- 你的训练数据可能过时；涉及时效性事实（新闻、价格、政策、财报等）"
-            "必须先使用 web_search / web_fetch 核实，不要用记忆编造。\n"
-            "- 叙述年份、季度时不要默认停留在训练截止年。"
-        )
         existing_prompt = request.system_prompt or ""
         modified_request = request.override(
-            system_prompt=existing_prompt + time_addendum
+            system_prompt=existing_prompt + current_time_system_addendum()
         )
         return await handler(modified_request)
+
+
+def current_time_system_addendum() -> str:
+    """撰写节点等非 middleware 路径也可注入当前时间。"""
+    return (
+        "\n\n## 当前时间\n\n"
+        f"现在是：**{_format_now()}**。\n"
+        "- 回答涉及「今天 / 本周 / 今年 / 最新 / 近期」时，必须以该时间为准。\n"
+        "- 你的训练数据可能过时；涉及时效性事实（新闻、价格、政策、财报等）"
+        "必须先使用 web_search / web_fetch 核实，不要用记忆编造。\n"
+        "- 叙述年份、季度时不要默认停留在训练截止年。"
+    )

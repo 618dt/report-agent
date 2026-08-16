@@ -18,6 +18,8 @@ from app.agent.artifacts.cite import (
     enforce_report_citations,
     extract_search_catalog,
     format_catalog_block,
+    merge_catalogs,
+    sanitize_prompt_examples,
 )
 from app.agent.artifacts.finalize import finalize_artifact
 from app.agent.artifacts.report import REPORT_PROTOCOL  # noqa: F401  注册 report 协议
@@ -29,6 +31,7 @@ from app.agent.artifacts.protocol import (
 )
 from app.agent.artifacts.state import ArtifactAgentState
 from app.agent.thinking_middleware import build_thinking_model_settings
+from app.agent.time_middleware import current_time_system_addendum
 from app.configs import cluster_configs
 from app.utils.log import logger
 from app.utils.text_helper import count_chinese_chars
@@ -87,7 +90,10 @@ def build_parent_graph(*, model, react_agent, checkpointer):
         title = str(pending.get("title") or "")
         topic = str(pending.get("topic") or "")
         raw_messages = list(state.get("messages") or [])
-        catalog = extract_search_catalog(raw_messages)
+        catalog = merge_catalogs(
+            state.get("search_sources"),
+            extract_search_catalog(raw_messages),
+        )
         extra = (
             f"\n\n标题：{title}\n主题：{topic}\n"
             "只输出 Markdown 正文，不要前言或工具调用。"
@@ -95,14 +101,16 @@ def build_parent_graph(*, model, react_agent, checkpointer):
         )
         settings = build_thinking_model_settings(False, disable_thinking=True)
         bound = model.bind(**settings)
-        base_system = str(
+        base_system = sanitize_prompt_examples(str(
             (cluster_configs.get("llm") or {}).get("deepseek", {}).get("system_prompt")
             or ""
-        )
+        ))
         messages = build_write_messages(
             raw_messages,
             prompt + extra,
-            system_prompt=f"{base_system}\n\n{CITE_SYSTEM_PROMPT}".strip(),
+            system_prompt=(
+                f"{base_system}{current_time_system_addendum()}\n\n{CITE_SYSTEM_PROMPT}"
+            ).strip(),
         )
         logger.info({
             "msg": "artifact_write_start",
@@ -129,7 +137,10 @@ def build_parent_graph(*, model, react_agent, checkpointer):
     async def commit_artifact_node(state: ArtifactAgentState) -> dict[str, Any]:
         """确定性提交，不经过模型选工具。"""
         pending, draft = resolve_artifact_context(dict(state))
-        catalog = extract_search_catalog(list(state.get("messages") or []))
+        catalog = merge_catalogs(
+            state.get("search_sources"),
+            extract_search_catalog(list(state.get("messages") or [])),
+        )
         if draft:
             draft = enforce_report_citations(draft, catalog)
         conversation_id, run_id = _config_ids(None)

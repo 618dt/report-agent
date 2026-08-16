@@ -170,6 +170,12 @@ def sanitize_messages_for_write(messages: list[Any] | None) -> list[BaseMessage]
         if isinstance(msg, ToolMessage):
             name = str(getattr(msg, "name", "") or "tool")
             text = _message_text(msg)
+            if get_protocol_by_begin_tool(name):
+                text = (
+                    "系统已进入撰写节点。"
+                    "请直接输出完整报告 Markdown 正文，含行内 [N] 与文末参考来源；"
+                    "参考来源 URL 必须来自上文检索结果。"
+                )
             if not text:
                 continue
             _append_same_role(out, HumanMessage(content=f"[{name} 结果]\n{text}"))

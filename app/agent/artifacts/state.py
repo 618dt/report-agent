@@ -19,3 +19,4 @@ class ArtifactAgentState(TypedDict, total=False):
     pending_artifact: Optional[dict[str, Any]]
     artifact_draft: str
     artifact_committed: bool
+    search_sources: list[dict[str, str]]

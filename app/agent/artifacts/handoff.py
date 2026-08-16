@@ -13,6 +13,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
+from app.agent.artifacts.cite import extract_search_catalog
 from app.agent.artifacts.protocol import get_protocol_by_begin_tool
 from app.agent.plan_mode_middleware import (
     _tool_call_id_from_request,
@@ -60,16 +61,22 @@ class ArtifactHandoffMiddleware(AgentMiddleware):
             "title": str(args.get("title") or ""),
             "topic": str(args.get("topic") or ""),
         }
+        messages = _messages_from_request(request)
+        if isinstance(result, ToolMessage):
+            messages = [*messages, result]
+        search_sources = extract_search_catalog(messages)
         logger.info({
             "msg": "artifact_handoff_to_parent",
             "kind": protocol.kind,
             "begin_tool": tool_name,
             "tool_call_id": pending["tool_call_id"],
+            "search_sources": len(search_sources),
         })
         update: dict[str, Any] = {
             "pending_artifact": pending,
             "artifact_committed": False,
             "artifact_draft": "",
+            "search_sources": search_sources,
         }
         if isinstance(result, ToolMessage):
             update["messages"] = [result]
@@ -78,3 +85,23 @@ class ArtifactHandoffMiddleware(AgentMiddleware):
             goto="write_artifact",
             graph=Command.PARENT,
         )
+
+
+def _messages_from_request(request: Any) -> list[Any]:
+    """从工具请求中取出当前子图 messages（begin 交接时检索结果还在子图里）。"""
+    candidates = [
+        getattr(request, "state", None),
+        getattr(getattr(request, "runtime", None), "state", None),
+    ]
+    for state in candidates:
+        if state is None:
+            continue
+        if isinstance(state, dict):
+            messages = state.get("messages") or []
+            if messages:
+                return list(messages)
+            continue
+        messages = getattr(state, "messages", None) or []
+        if messages:
+            return list(messages)
+    return []

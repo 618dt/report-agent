@@ -35,23 +35,20 @@ _TITLE_TAIL_RE = re.compile(r"[，,][^，,]*$|第[\d\-—~至到]+页.*$")
 
 CITE_SYSTEM_PROMPT = """## 报告引用规范（必须遵守）
 
-与对话系统提示中的「引用规范」一致，撰写报告时必须执行：
-
 1. **统一编号，禁止沿用单次搜索编号**
    - 每次 web_search 返回的 1.~5. 只是该次工具结果的局部编号
    - 写报告前把本轮用到的来源按 URL 去重，再从 1 连续编号
    - 行内 [N] 只能对应该最终列表的第 N 条
 2. **行内必须标注**
    - 仅使用 [1]、[2] 这种方括号数字，紧跟被引用的句子或数据
-   - 示例：2024年新能源汽车销量同比增长35%[1]，市场渗透率首次突破40%[2]
+   - 示例：2024年新能源汽车销量同比增长35%[1]
    - 禁止只写「## 参考来源」标题却不在正文标注、也不列条目
-3. **文末必须列出参考来源（含 URL）**
-   - 标题必须是「## 参考来源」（不要写成「## 六、参考来源」）
-   - 格式：
-     1. 标题 - https://example.com/a
-     2. 标题 - https://example.com/b
-   - 只列出正文实际用到的 [N]；不要输出空的参考来源章节
-4. 禁止上标、[^N]、脚注等其它写法；不要编造不存在的 URL
+3. **文末参考来源必须是本轮检索结果的子集**
+   - 标题必须是「## 参考来源」
+   - 每条格式：N. 标题 - URL（URL 必须逐字复制检索结果中的地址）
+   - 禁止编造、改写或用占位域名；系统会丢弃任何不在检索结果中的链接
+   - 只列出正文实际用到的 [N]
+4. 禁止上标、[^N]、脚注等其它写法
 """
 
 
@@ -94,22 +91,52 @@ def format_catalog_block(catalog: list[dict[str, str]]) -> str:
     return "\n" + "\n".join(lines)
 
 
+def merge_catalogs(*groups: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    """合并多路检索来源，按 URL 去重。"""
+    catalog: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for group in groups:
+        for item in group or []:
+            if not isinstance(item, dict):
+                continue
+            _push_source(
+                catalog,
+                seen,
+                str(item.get("title") or ""),
+                str(item.get("url") or ""),
+            )
+    return catalog
+
+
+def sanitize_prompt_examples(text: str) -> str:
+    """去掉系统提示里的 example.com 范例，避免模型照抄成假链接。"""
+    if not text:
+        return ""
+    return (
+        text.replace("https://example.com/a", "（使用检索结果中的真实 URL）")
+        .replace("https://example.com/b", "（使用检索结果中的真实 URL）")
+        .replace("https://example.com", "（检索结果 URL）")
+    )
+
+
 def enforce_report_citations(
     markdown: str,
     catalog: list[dict[str, str]],
 ) -> str:
-    """用检索清单给参考来源补 URL，并按正文引用顺序重新编号。"""
+    """参考来源只保留检索 catalog 中的 URL；伪造链接一律丢弃。"""
     text = (markdown or "").strip()
-    if not text or not catalog:
+    if not text:
         return text
 
+    catalog = merge_catalogs(catalog)
     refs = _parse_ref_section(text)
     body = _SOURCES_HEADING_RE.sub("\n", text).strip()
     cited = _cited_indices_in_order(body)
     if not cited:
         cited = sorted(refs.keys())
-    if not cited:
-        return text
+
+    if not catalog:
+        return body if refs else text
 
     resolved: list[dict[str, str]] = []
     old_to_new: dict[int, int] = {}
@@ -129,7 +156,7 @@ def enforce_report_citations(
         url_to_new[url] = new_n
 
     if not resolved:
-        return text
+        return body
 
     new_body = _remap_citations(body, old_to_new)
     ref_lines = [
@@ -323,25 +350,32 @@ def _best_catalog_match(
     return best
 
 
+def _norm_url(url: str) -> str:
+    return (url or "").strip().rstrip(").,;]/")
+
+
+def _catalog_by_url(catalog: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {_norm_url(item["url"]): item for item in catalog if item.get("url")}
+
+
 def _resolve_source(
     index: int,
     ref: dict[str, str] | None,
     catalog: list[dict[str, str]],
 ) -> dict[str, str] | None:
+    """只返回 catalog 中的条目；模型编造的 URL 一律丢弃。"""
+    by_url = _catalog_by_url(catalog)
     if ref and ref.get("url"):
-        url = ref["url"]
-        for item in catalog:
-            if item["url"] == url:
-                title = ref.get("title") or item["title"]
-                return {"title": title, "url": url}
-        return {"title": ref.get("title") or url, "url": url}
+        hit = by_url.get(_norm_url(ref["url"]))
+        if hit:
+            return {
+                "title": (ref.get("title") or hit["title"]).strip() or hit["title"],
+                "url": hit["url"],
+            }
     if ref and ref.get("title"):
         matched = _best_catalog_match(ref["title"], catalog)
         if matched:
-            return {
-                "title": ref["title"] or matched["title"],
-                "url": matched["url"],
-            }
-    if 1 <= index <= len(catalog) and not ref:
+            return {"title": matched["title"], "url": matched["url"]}
+    if not ref and 1 <= index <= len(catalog):
         return catalog[index - 1]
     return None
