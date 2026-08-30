@@ -39,7 +39,7 @@ _PLAN_MODE_PROMPT = """
 
 ### 强制规则
 1. 在调用任何副作用工具之前，必须先调用 `propose_plan` 提交可编辑计划并等待确认。
-2. 副作用工具包括：`request_user_confirmation`、`begin_report`、`submit_report`。
+2. 副作用工具包括：`request_user_confirmation`、`begin_report`。
 3. 规划阶段允许：向用户澄清、`web_search` / `web_fetch`（只读调研）、`load_skill`、`propose_plan`。
 4. **禁止**用 Markdown 清单/表格在对话正文里展示计划；计划只能通过 `propose_plan` 的 steps 传递。
 5. 用户 `confirm` 后：严格按返回的最终 `selected` 步骤执行（含任务技能要求的二次确认，如报告目录）。

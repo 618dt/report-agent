@@ -12,6 +12,7 @@ import {
   ListTodo,
   Loader,
   Minus,
+  X,
 } from 'lucide-react'
 import './PlanProgressCard.css'
 
@@ -20,6 +21,7 @@ const STATUS_META = {
   running: { label: '进行中', Icon: Loader },
   pending: { label: '待执行', Icon: Circle },
   skipped: { label: '已跳过', Icon: Minus },
+  failed: { label: '未完成', Icon: X },
 }
 
 export default function PlanProgressCard({ plan }) {
@@ -30,11 +32,12 @@ export default function PlanProgressCard({ plan }) {
   const steps = plan.steps
   const total = plan.total_count ?? steps.length
   const completed = plan.completed_count ?? steps.filter(
-    (s) => s.status === 'completed' || s.status === 'skipped',
+    (s) => s.status === 'completed' || s.status === 'skipped' || s.status === 'failed',
   ).length
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0
   const hasRunning = steps.some((s) => s.status === 'running')
-  const done = plan.status === 'completed' || (total > 0 && completed >= total)
+  const done = plan.status === 'completed' || plan.status === 'failed'
+    || (total > 0 && completed >= total)
   const isLive = !done && (hasRunning || plan.status === 'running' || plan.status === 'pending')
 
   const [expanded, setExpanded] = useState(isLive)
@@ -149,4 +152,29 @@ export function extractPlanFromEvents(events) {
     }
   }
   return latest
+}
+
+/** 终态 run 展示时收口仍为 running 的步骤，避免刷新后计划永远转圈 */
+export function closePlanForDisplay(plan, { runStatus, hasArtifact } = {}) {
+  if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return plan
+  const terminal = ['success', 'failed', 'cancelled'].includes(runStatus)
+  if (!terminal) return plan
+  const hasRunning = plan.steps.some((s) => s.status === 'running') || plan.status === 'running'
+  if (!hasRunning) return plan
+  const target = (runStatus === 'success' && hasArtifact) ? 'completed' : 'failed'
+  const steps = plan.steps.map((s) => (
+    s.status === 'running' ? { ...s, status: target } : s
+  ))
+  const completed = steps.filter(
+    (s) => s.status === 'completed' || s.status === 'skipped',
+  ).length
+  const total = steps.length
+  return {
+    ...plan,
+    steps,
+    completed_count: completed,
+    total_count: total,
+    current_step_id: null,
+    status: completed >= total ? 'completed' : (target === 'failed' ? 'failed' : plan.status),
+  }
 }

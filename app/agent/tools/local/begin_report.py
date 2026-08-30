@@ -19,8 +19,7 @@ def begin_report(title: str, topic: str) -> str:
     """开始撰写分析报告正文。
 
     在用户已确认章节目录、并完成必要检索之后、输出报告正文之前调用。
-    调用成功后，请将完整报告 Markdown 作为助手消息正文直接输出（系统会流式展示）；
-    全部写完后再调用 submit_report 提交同一份正文。
+    调用成功后系统会进入撰写节点并自动提交，请不要再输出报告全文。
 
     Arguments:
         title -- 报告标题
@@ -40,8 +39,6 @@ def begin_report(title: str, topic: str) -> str:
 
     return (
         f"已开始撰写《{report_title}》。"
-        "请立即把完整报告 Markdown 作为本轮助手正文（content）输出；"
-        "不要在 thinking/reasoning 中起草或预写报告正文。"
-        "写完后调用 submit_report(title, topic, markdown) 提交同一份正文。"
-        "不要把报告全文写进普通说明性短句里。"
+        "系统将自动生成完整报告 Markdown 并提交；"
+        "请不要再输出报告全文。"
     )

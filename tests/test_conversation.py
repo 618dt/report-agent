@@ -23,7 +23,7 @@ from app.logic.conversation import (
     logic_update_conversation_title,
 )
 from app.models.chat.chat_model import Conversation
-from app.utils.exception_handler import AppException
+from app.utils.exception_handler import AppException, friendly_agent_error
 from app.utils.time_helper import datetime2timestamp
 
 
@@ -501,3 +501,25 @@ class TestLogicUpdateConversationTitle:
         )
 
         assert result['title'] == ''
+
+
+def test_friendly_agent_error_insufficient_balance():
+    exc = Exception(
+        "Error code: 402 - {'error': {'message': 'Insufficient Balance', "
+        "'type': 'unknown_error', 'code': 'invalid_request_error'}}"
+    )
+    code, message = friendly_agent_error(exc)
+    assert code == "llm_insufficient_balance"
+    assert "余额不足" in message
+    assert "402" not in message
+    assert "Insufficient" not in message
+
+
+def test_friendly_agent_error_rate_limit_and_fallback():
+    code, message = friendly_agent_error(Exception("Error code: 429 - rate limit exceeded"))
+    assert code == "llm_rate_limited"
+    assert "频繁" in message
+
+    code, message = friendly_agent_error(RuntimeError("unexpected boom"))
+    assert code == "agent_stream_error"
+    assert message == "服务暂时遇到问题，请稍后重试。"

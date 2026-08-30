@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar.jsx'
 import ChatWindow from './components/ChatWindow.jsx'
 import ReportStreamDrawer from './components/ReportStreamDrawer.jsx'
 import { extractArtifactsFromEvents } from './components/AgentTrace.jsx'
-import { extractPlanFromEvents } from './components/PlanProgressCard.jsx'
+import { extractPlanFromEvents, closePlanForDisplay } from './components/PlanProgressCard.jsx'
 import { extractConfirmResultsFromEvents } from './components/ConfirmResultCard.jsx'
 import { useSSE } from './hooks/useSSE.js'
 import {
@@ -129,6 +129,17 @@ export default function App() {
         pendingConvRef.current = conversationId
         // 新会话在流式过程中就绑定 id，避免结束后 loadMessages 冲掉 HITL 状态
         loadedConvRef.current = conversationId
+        // 首条消息创建会话后立刻出现在侧边栏，不必等整轮流式结束
+        setActiveConvId((prev) => (prev === conversationId ? prev : conversationId))
+        void fetchConversations(0, 50)
+          .then((res) => {
+            if (res.success && res.data?.items) {
+              setConversations(res.data.items)
+            }
+          })
+          .catch((err) => {
+            console.error('加载会话列表失败:', err)
+          })
       }
       setMessages(prev => {
         if (prev.some(m => m.run_id === runId)) return prev
@@ -306,9 +317,9 @@ export default function App() {
           artifacts.push(data)
         }
 
-        // 终态到达：合并/清理本轮所有 generating 草稿，避免 begin/submit id 不一致留下卡住的「生成中」卡片
         const prevDrafts = msg.reportDrafts || {}
         const draftKey = data.tool_call_id || `artifact_${Date.now()}`
+        // 终态 markdown 为准；不要用更长的流式草稿覆盖，以免丢掉后补的 [N] 与链接
         let mergedMarkdown = data.markdown
         let mergedTitle = data.title || ''
         let mergedTopic = data.topic || ''
@@ -319,13 +330,6 @@ export default function App() {
           }
           if (!mergedTitle && draft.title) mergedTitle = draft.title
           if (!mergedTopic && draft.topic) mergedTopic = draft.topic
-          // 若终态前流式正文更长，保留更完整的一份（一般终态更全）
-          if (
-            draft.markdown
-            && draft.markdown.length > (mergedMarkdown?.length || 0)
-          ) {
-            mergedMarkdown = draft.markdown
-          }
         }
 
         const drafts = {
@@ -450,7 +454,7 @@ export default function App() {
             ...msg,
             id: messageId || msg.id,
             status: 'failed',
-            content: msg.content || `错误: ${message}`,
+            content: msg.content || message || '服务暂时遇到问题，请稍后重试。',
             reportDrafts: drafts,
             events: finalizeStreamingReasoning(msg.events),
             usage: usage || msg.usage,
@@ -532,6 +536,7 @@ export default function App() {
         // 批量拉取 run events（含各 run 的 usage）
         let eventsByRun = {}
         let usageByRun = {}
+        const runMetaById = {}
         if (runIds.length > 0) {
           const eventsRes = await fetchRunEvents(convId, [...new Set(runIds)])
           const eventsOk = eventsRes?.success || eventsRes?.code === 0
@@ -544,7 +549,9 @@ export default function App() {
           }
           if (eventsOk && Array.isArray(eventsRes.data?.runs)) {
             for (const run of eventsRes.data.runs) {
-              if (run?._id && run.usage) usageByRun[run._id] = run.usage
+              if (!run?._id) continue
+              runMetaById[run._id] = run
+              if (run.usage) usageByRun[run._id] = run.usage
             }
           }
         }
@@ -558,6 +565,31 @@ export default function App() {
           // Message.status: 0=sending, 1=success, 2=fail
           let status = 'success'
           if (m.status === 2) status = 'failed'
+          const meta = m.run_id ? runMetaById[m.run_id] : null
+          const artifacts = role === 'assistant' ? extractArtifactsFromEvents(events) : []
+          const rawPlan = role === 'assistant'
+            ? (extractPlanFromEvents(events) || meta?.plan || null)
+            : null
+          const hasArtifact = artifacts.length > 0
+            || Boolean(meta?.partial_report?.markdown)
+          const plan = role === 'assistant'
+            ? closePlanForDisplay(rawPlan, {
+              runStatus: meta?.status || (status === 'failed' ? 'failed' : 'success'),
+              hasArtifact,
+            })
+            : null
+          let reportDrafts = {}
+          if (
+            role === 'assistant'
+            && artifacts.length === 0
+            && meta?.partial_report?.markdown
+          ) {
+            reportDrafts = buildReportDraftsFromActiveRun({
+              run_id: m.run_id,
+              events,
+              partial_report: { ...meta.partial_report, status: 'ready' },
+            })
+          }
           return {
             id: m._id,
             role,
@@ -565,9 +597,9 @@ export default function App() {
             run_id: m.run_id || null,
             status,
             events,
-            artifacts: role === 'assistant' ? extractArtifactsFromEvents(events) : [],
-            reportDrafts: {},
-            plan: role === 'assistant' ? extractPlanFromEvents(events) : null,
+            artifacts,
+            reportDrafts,
+            plan,
             confirmResults: role === 'assistant'
               ? extractConfirmResultsFromEvents(events)
               : [],

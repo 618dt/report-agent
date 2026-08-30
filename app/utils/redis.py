@@ -33,7 +33,7 @@ class RedisConfig:
     password: Optional[str] = None
     socket_timeout: int = 5
     socket_connect_timeout: int = 5
-    max_connections: int = 50
+    max_connections: int = 100
     decode_responses: bool = True
     startup_nodes: list[dict] = field(default_factory=list)
 
@@ -68,7 +68,7 @@ class RedisConfig:
             password=password or None,
             socket_timeout=config.get("socket_timeout", 5),
             socket_connect_timeout=config.get("socket_connect_timeout", 5),
-            max_connections=config.get("max_connections", 50),
+            max_connections=config.get("max_connections", 100),
             startup_nodes=config.get("startup_nodes", []),
         )
 

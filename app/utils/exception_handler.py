@@ -88,3 +88,54 @@ class GlobalExceptionHandler:
                     request=request,
                 ),
             )
+
+
+def friendly_agent_error(exc: BaseException) -> tuple[str, str]:
+    """把模型/流式异常转成用户可读文案，原始错误只留在日志与 ChatRun.error。
+
+    Returns:
+        tuple[str, str] -- (error_code, user_message)
+    """
+    text = str(exc or "").lower()
+    status = _http_status_from_exc(exc)
+
+    if (
+        status == 402
+        or "insufficient balance" in text
+        or "insufficient_quota" in text
+        or "exceeded your current quota" in text
+        or "billing_not_active" in text
+    ):
+        return "llm_insufficient_balance", "模型服务余额不足，请充值后再试。"
+
+    if status == 429 or "rate limit" in text or "too many requests" in text:
+        return "llm_rate_limited", "模型服务请求过于频繁，请稍后再试。"
+
+    if status in (401, 403) or "invalid api key" in text or "authentication" in text:
+        return "llm_auth_failed", "模型服务鉴权失败，请检查接口配置。"
+
+    if "timeout" in text or "timed out" in text:
+        return "llm_timeout", "模型服务响应超时，请稍后重试。"
+
+    if "context length" in text or "maximum context" in text or "too many tokens" in text:
+        return "llm_context_overflow", "对话上下文过长，请新开会话后再试。"
+
+    if status and 500 <= status < 600:
+        return "llm_unavailable", "模型服务暂时不可用，请稍后重试。"
+
+    return "agent_stream_error", "服务暂时遇到问题，请稍后重试。"
+
+
+def _http_status_from_exc(exc: BaseException) -> int | None:
+    for attr in ("status_code", "http_status"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int) and 400 <= value < 600:
+            return value
+    text = str(exc or "").lower()
+    if "error code: 402" in text:
+        return 402
+    if "error code: 429" in text:
+        return 429
+    if "error code: 401" in text:
+        return 401
+    return None

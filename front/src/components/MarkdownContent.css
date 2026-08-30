@@ -154,6 +154,10 @@
   color: #fff;
 }
 
+.citation-badge--plain {
+  cursor: default;
+}
+
 /* ===== 图片 ===== */
 .markdown-img {
   max-width: 100%;
